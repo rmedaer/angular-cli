@@ -1,22 +1,21 @@
 import * as denodeify from 'denodeify';
 
 const SilentError = require('silent-error');
-const PortFinder = require('portfinder');
-const getPort = denodeify<{host: string, port: number}, number>(PortFinder.getPort);
+const net = require('net');
+function checkPort(port, host = '0.0.0.0', basePort = 49152) {
+    return new Promise((resolve, reject) => {
+      let server = net.createServer(() => {});
 
-export function checkPort(port: number, host: string, basePort = 49152): Promise<number> {
-  PortFinder.basePort = basePort;
-  return getPort({ port, host })
-    .then(foundPort => {
+      server.once('error', (err) => {
+        reject(new SilentError(`Port ${port} is already in use. Use '--port' to specify a different port.`));
+        server.close();
+      });
 
-      // If the port isn't available and we weren't looking for any port, throw error.
-      if (port !== foundPort && port !== 0) {
-        throw new SilentError(
-          `Port ${port} is already in use. Use '--port' to specify a different port.`
-        );
-      }
+      server.once('listening', () => {
+        resolve(port);
+        server.close();
+      });
 
-      // Otherwise, our found port is good.
-      return foundPort;
+      server.listen(port, host);
     });
 }
